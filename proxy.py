@@ -36,24 +36,29 @@ async def rejected_resp(writer):
     return await writer.drain()
 
 async def try_close(writer):
+    if writer.is_closing():
+        return
     try:
         writer.close()
         await writer.wait_closed()
     except Exception as e:
-        logging.debug("{repr(e)} in try_close")
+        logging.debug(e, exc_info=True)
 
 def try_shutdown(writer):
+    if writer.is_closing():
+        return
     try:
         writer.write_eof()
     except Exception as e:
-        logging.debug("{repr(e)} in try_shutdown")
+        logging.debug(e, exc_info=True)
 
 async def handle_conn(reader, writer, ipv4):
     client = ":".join(map(str, writer.get_extra_info('peername')))
     logging.debug(f"New connection from {client}")
     try:
-        http = await reader.readuntil(b"\r\n\r\n")
+        http = await reader.read(4096)
         try:
+            assert(http.endswith(b"\r\n\r\n"))
             method,host,port = parse_http(http)
         except Exception:
             logging.debug(f"Bad request from {client}, {http}")
